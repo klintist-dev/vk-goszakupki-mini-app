@@ -5,19 +5,14 @@ import { ResultCard } from './ResultCard';
 interface ShowResultProps {
   result: string;
   onPageChange?: (page: number) => void;
+  onOrgClick?: (orgData: any) => void;
 }
 
-export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
+export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange, onOrgClick }) => {
   if (!result || result === 'Готов к работе') return null;
 
   try {
     const data = JSON.parse(result);
-
-    // Отладка — после объявления data
-    console.log('🔍 ShowResult получил данные:', data);
-    console.log('🔍 totalPages =', data.totalPages);
-    console.log('🔍 contracts.length =', data.contracts?.length);
-    console.log('🔍 status =', data.status);
 
     // Выписка из ЕГРЮЛ (PDF)
     if (data.status === 'success' && data.data?.download_link) {
@@ -26,31 +21,49 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
           orgName={data.data.org_name || "Организация"}
           inn={data.data.inn}
           pdfLink={data.data.download_link}
+          onOrgClick={onOrgClick}
         />
       );
     }
 
     // Проверка ИНН / Поиск по названию (текстовый результат)
     if (data.status === 'success' && data.data?.raw) {
+      const raw = data.data.raw;
+
+      // Извлекаем название
+      const nameMatch = raw.match(/\*\*Организация найдена\*\*\n\n\*\*(.+?)\*\*/);
+      const orgName = nameMatch ? nameMatch[1] : '';
+
+      // Извлекаем ИНН
+      const innMatch = raw.match(/ИНН:\s*`?(\d+)`?/);
+      const inn = innMatch ? innMatch[1] : '';
+
+      // Извлекаем ОГРН
+      const ogrnMatch = raw.match(/ОГРН:\s*(\d+)/);
+      const ogrn = ogrnMatch ? ogrnMatch[1] : '';
+
+      // Извлекаем дату регистрации
+      const dateMatch = raw.match(/Дата регистрации:\s*(\d{2}\.\d{2}\.\d{4})/);
+      const registrationDate = dateMatch ? dateMatch[1] : '';
+
+      // Извлекаем руководителя
+      const directorMatch = raw.match(/Руководитель:\s*(.+?)(?:\n|$)/);
+      const director = directorMatch ? directorMatch[1].trim() : '';
+
+      // Извлекаем КПП (только цифры)
+      const kppMatch = raw.match(/КПП:\s*(\d{9})/);
+      const kpp = kppMatch ? kppMatch[1] : '';
+      console.log('📦 Извлечённый КПП:', kpp);
+
       return (
         <ResultCard
-          customContent={
-            <div
-              style={{
-                background: 'var(--card-background)',
-                padding: 10,
-                borderRadius: 6,
-                marginTop: 8,
-                color: 'var(--text-secondary)'
-              }}
-              dangerouslySetInnerHTML={{
-                __html: data.data.raw
-                  .replace(/\*\*(.*?)\*\*/g, `<strong style="color:var(--accent)">$1</strong>`)
-                  .replace(/`(.*?)`/g, `<code style="color:var(--text-secondary);background:var(--card-background);padding:2px 4px;border-radius:4px">$1</code>`)
-                  .replace(/\n/g, '<br/>')
-              }}
-            />
-          }
+          orgName={orgName}
+          inn={inn}
+          ogrn={ogrn}
+          registrationDate={registrationDate}
+          director={director}
+          kpp={kpp}
+          onOrgClick={onOrgClick}
         />
       );
     }
@@ -67,8 +80,6 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
       const currentPage = data.currentPage || 1;
       const totalPages = data.totalPages || 1;
 
-      console.log('📄 Рендерим контракты, totalPages =', totalPages, 'currentPage =', currentPage);
-
       return (
         <div>
           <Text style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>
@@ -76,7 +87,6 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
             {shown < total && ` (показано ${shown} из ${total})`}
           </Text>
 
-          {/* Пагинация сверху */}
           {totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               <Button
@@ -87,24 +97,20 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
               >
                 ◀ Назад
               </Button>
-              <Text style={{ padding: '6px 12px' }}>
+              <Text style={{ padding: '6px 12px', color: 'var(--text-secondary)' }}>
                 Страница {currentPage} из {totalPages}
               </Text>
               <Button
                 size="s"
                 mode="secondary"
                 disabled={currentPage === totalPages}
-                onClick={() => {
-                      console.log('🖱️ Нажата кнопка Вперед, currentPage =', currentPage);
-                      onPageChange?.(currentPage + 1);
-                }}
+                onClick={() => onPageChange?.(currentPage + 1)}
               >
                 Вперед ▶
               </Button>
             </div>
           )}
 
-          {/* Список контрактов на текущей странице */}
           {data.contracts.map((contract: any, idx: number) => (
             <Card key={idx} mode="outline" style={{ marginBottom: 16, padding: 12, borderColor: 'var(--border)', background: 'var(--card-background)' }}>
               <Text weight="2" style={{ color: 'var(--accent)', marginBottom: 8 }}>
@@ -113,15 +119,14 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
               <Text style={{ marginBottom: 4, color: 'var(--text-primary)' }}><b>Статус:</b> {contract.status}</Text>
               <Text style={{ marginBottom: 4, color: 'var(--text-primary)' }}><b>Сумма:</b> <span style={{ color: 'var(--accent)' }}>{contract.price}</span></Text>
               <Text style={{ marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}><b>Заказчик:</b> {contract.customer}</Text>
-              <Text style={{ marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}><b>Дата:</b> {contract.date}</Text>
-              <Text style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}><b>Объект:</b> {contract.object}</Text>
+              <Text style={{ marginBottom: 4, fontSize: 12, color: 'var(--text-secondary)' }}><b>Дата публикации:</b> {contract.publish_date}</Text>
+              <Text style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}><b>Объект закупки:</b> {contract.object}</Text>
               <Button href={contract.url} target="_blank" size="s" mode="secondary">
                 🔗 Перейти к контракту
               </Button>
             </Card>
           ))}
 
-          {/* Пагинация снизу */}
           {totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
               <Button
@@ -132,7 +137,7 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
               >
                 ◀ Назад
               </Button>
-              <Text style={{ padding: '6px 12px' }}>
+              <Text style={{ padding: '6px 12px', color: 'var(--text-secondary)' }}>
                 Страница {currentPage} из {totalPages}
               </Text>
               <Button
@@ -152,7 +157,7 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange }) => {
     // Универсальный случай
     return (
       <ResultCard
-        customContent={<pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre>}
+        customContent={<pre style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{JSON.stringify(data, null, 2)}</pre>}
       />
     );
   } catch (e) {

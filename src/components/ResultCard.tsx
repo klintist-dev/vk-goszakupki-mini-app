@@ -11,6 +11,10 @@ import { ResultCardProps } from '../types';
 export const ResultCard: FC<ResultCardProps> = ({
   orgName,
   inn,
+  ogrn,
+  registrationDate,
+  director,
+  kpp,
   status,
   sum,
   date,
@@ -18,8 +22,9 @@ export const ResultCard: FC<ResultCardProps> = ({
   contractLink,
   error,
   customContent,
+  onOrgClick,
 }) => {
-  // Ошибка — красная карточка
+  // Обработчик ошибки
   if (error) {
     return (
       <Card mode="outline" style={{ borderColor: 'var(--error)', marginBottom: 16, background: 'var(--card-background)' }}>
@@ -32,17 +37,50 @@ export const ResultCard: FC<ResultCardProps> = ({
     );
   }
 
-  // Обычная карточка с данными
+  // Обработчик клика по названию организации
+  const handleOrgClick = () => {
+    if (onOrgClick && orgName && inn) {
+      onOrgClick({
+        name: orgName,
+        inn: inn,
+        ogrn: ogrn,
+        registrationDate: registrationDate,
+        director: director,
+        kpp: kpp,
+      });
+    }
+  };
+
   return (
     <Card mode="outline" style={{ marginBottom: 16, borderColor: 'var(--border)', background: 'var(--card-background)' }}>
       <Spacing size={16}>
-        {/* Название организации — акцентный цвет */}
+        {/* Название организации — кликабельное с иконкой */}
         {orgName && (
-          <Title level="3" weight="2" style={{ color: 'var(--accent)' }}>
-            {orgName}
-          </Title>
+          <div
+            onClick={handleOrgClick}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: 8,
+              flexWrap: 'wrap'
+            }}
+          >
+            <Title
+              level="3"
+              weight="2"
+              style={{
+                color: 'var(--accent)',
+                textDecoration: 'underline',
+                margin: 0
+              }}
+            >
+              {orgName}
+            </Title>
+            <span style={{ color: 'var(--accent)', fontSize: '14px' }}>🔗</span>
+          </div>
         )}
-        <Spacing size={8} />
 
         {/* ИНН */}
         {inn && (
@@ -51,7 +89,35 @@ export const ResultCard: FC<ResultCardProps> = ({
           </Text>
         )}
 
-        {/* Статус — зелёный или красный */}
+        {/* КПП */}
+        {/*{kpp && (
+          <Text style={{ color: 'var(--text-primary)' }}>
+            <b>КПП:</b> <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{kpp}</span>
+          </Text>
+        )}*/}
+
+        {/* ОГРН */}
+        {ogrn && (
+          <Text style={{ color: 'var(--text-primary)' }}>
+            <b>ОГРН:</b> <span style={{ color: 'var(--text-secondary)' }}>{ogrn}</span>
+          </Text>
+        )}
+
+        {/* Дата регистрации */}
+        {registrationDate && (
+          <Text style={{ color: 'var(--text-primary)' }}>
+            <b>Дата регистрации:</b> <span style={{ color: 'var(--text-secondary)' }}>{registrationDate}</span>
+          </Text>
+        )}
+
+        {/* Руководитель */}
+        {director && (
+          <Text style={{ color: 'var(--text-primary)' }}>
+            <b>Руководитель:</b> <span style={{ color: 'var(--text-secondary)' }}>{director}</span>
+          </Text>
+        )}
+
+        {/* Статус */}
         {status && (
           <Text style={{
             color: status === "Действующее" ? 'var(--success)' : 'var(--error)',
@@ -61,7 +127,7 @@ export const ResultCard: FC<ResultCardProps> = ({
           </Text>
         )}
 
-        {/* Сумма — акцентный цвет */}
+        {/* Сумма */}
         {sum && (
           <Text style={{ color: 'var(--text-primary)' }}>
             <b>Сумма:</b> <span style={{ color: 'var(--accent)', fontWeight: 500 }}>{sum}</span>
@@ -91,7 +157,7 @@ export const ResultCard: FC<ResultCardProps> = ({
           </Button>
         )}
 
-        {/* Кнопка "Посмотреть контракт" */}
+        {/* Кнопка контракта */}
         {contractLink && (
           <Button
             href={contractLink}

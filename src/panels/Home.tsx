@@ -18,9 +18,10 @@ export interface HomeProps {
   id: string;
   fetchedUser?: UserInfo;
   onNavigateToProfile?: () => void;
+  onOrgClick?: (orgData: any) => void;
 }
 
-export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) => {
+export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOrgClick }) => {
   // Состояния для API запросов
   const [loading1, setLoading1] = useState(false);
   const [result1, setResult1] = useState('');
@@ -46,12 +47,10 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
   const [loading6, setLoading6] = useState(false);
   const [result6, setResult6] = useState('');
 
-  // Пагинация для поставщика (контракты хранятся локально)
+  // Пагинация для поставщика
   const [supplierContracts, setSupplierContracts] = useState<any[]>([]);
   const [supplierTotal, setSupplierTotal] = useState(0);
   const [supplierTotalPages, setSupplierTotalPages] = useState(0);
-
-  // Для заказчика храним только номер текущей страницы
   const [customerTotalPages, setCustomerTotalPages] = useState(0);
 
   const [subscribeInn, setSubscribeInn] = useState('');
@@ -70,7 +69,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
   const API_URL = 'https://burodev.ru';
   const ITEMS_PER_PAGE = 20;
 
-  // Обработчик добавления подписки
   const handleAddSubscription = async () => {
     const success = await addSubscription(subscribeInn, subscriptionType);
     if (success) {
@@ -78,7 +76,12 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
     }
   };
 
-  // ========== Функции API ==========
+  const handleOrgClick = (orgData: any) => {
+    if (onOrgClick) {
+      onOrgClick(orgData);
+    }
+  };
+
   const testINN = async () => {
     if (!inn) { setResult1(JSON.stringify({ error: "Введите ИНН" })); return; }
     setLoading1(true);
@@ -137,7 +140,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
     }
   };
 
-  // ========== Госзакупки: поставщик ==========
   const searchZakupki = async () => {
     if (!zakupkiInn) {
       setResult5(JSON.stringify({ error: "Введите ИНН организации" }));
@@ -180,7 +182,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
     }
   };
 
-  // ========== Госзакупки: заказчик (с пагинацией на бэкенде) ==========
   const searchCustomerContracts = async (page: number = 1) => {
     if (!customerInn) {
       setResult6(JSON.stringify({ error: "Введите ИНН организации" }));
@@ -191,17 +192,14 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
       const url = `${API_URL}/zakupki/customer/contracts/${customerInn}?page=${page}&limit=${ITEMS_PER_PAGE}`;
       const response = await fetch(url);
       const data = await response.json();
-
       if (data.success) {
         const contracts = data.contracts;
         const total = data.total;
-
         if (total === 0) {
           setResult6(JSON.stringify({ status: 'success', customContent: '📭 Контрактов не найдено' }));
         } else {
           const pages = Math.ceil(total / ITEMS_PER_PAGE);
           setCustomerTotalPages(pages);
-
           setResult6(JSON.stringify({
             status: 'success',
             contracts: contracts,
@@ -221,7 +219,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
     }
   };
 
-  // ========== Пагинация ==========
   const goToPage = (page: number) => {
     if (searchType === 'supplier') {
       if (page < 1 || page > supplierTotalPages) return;
@@ -245,7 +242,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
 
   return (
     <Panel id={id}>
-      {/* Шапка */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -260,7 +256,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Button>
       </div>
 
-      {/* Приветствие */}
       <Group>
         <Div style={{ textAlign: 'center' }}>
           <Title level="2" style={{ color: 'var(--accent)' }}>Привет, {fetchedUser ? first_name : 'гость'}!</Title>
@@ -274,28 +269,25 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Group>
       )}
 
-      {/* 1. Проверка ИНН */}
       <Group header={<Header>1. Проверка ИНН</Header>}>
         <Div>
           <Input placeholder="Введите ИНН (10 или 12 цифр)" value={inn} onChange={(e) => setInn(e.target.value)} style={{ marginBottom: 10 }} />
           <Button onClick={testINN} disabled={loading1} size="m" mode="primary">🏢 Проверить ИНН</Button>
           {loading1 && <Spinner size="m" style={{ marginTop: 10 }} />}
-          <ShowResult result={result1} />
+          <ShowResult result={result1} onOrgClick={handleOrgClick} />
         </Div>
       </Group>
 
-      {/* 2. Поиск по названию */}
       <Group header={<Header>2. Поиск по названию</Header>}>
         <Div>
           <Input placeholder="Название организации" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ marginBottom: 10 }} />
           <Input placeholder="Код региона (например: 77)" value={region} onChange={(e) => setRegion(e.target.value)} style={{ marginBottom: 10 }} />
           <Button onClick={searchByName} disabled={loading2} size="m" mode="primary">🔍 Найти по названию</Button>
           {loading2 && <Spinner size="m" style={{ marginTop: 10 }} />}
-          <ShowResult result={result2} />
+          <ShowResult result={result2} onOrgClick={handleOrgClick} />
         </Div>
       </Group>
 
-      {/* 3. Выписка из ЕГРЮЛ */}
       <Group header={<Header>3. Выписка из ЕГРЮЛ</Header>}>
         <Div>
           <Input placeholder="ИНН организации" value={extractInn} onChange={(e) => setExtractInn(e.target.value)} style={{ marginBottom: 10 }} />
@@ -305,7 +297,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Div>
       </Group>
 
-      {/* 4. Поиск ИНН по паспорту */}
       <Group header={<Header>4. Поиск ИНН по паспорту</Header>}>
         <Div>
           <Input placeholder="Серия паспорта" value={passportSeria} onChange={(e) => setPassportSeria(e.target.value)} style={{ marginBottom: 10 }} />
@@ -316,7 +307,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Div>
       </Group>
 
-      {/* 5. Госзакупки */}
       <Group header={<Header>5. Госзакупки (контракты по ИНН)</Header>}>
         <Div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -350,7 +340,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Div>
       </Group>
 
-      {/* 6. Уведомления */}
       <Group header={<Header>6. 🔔 Уведомления о новых контрактах</Header>}>
         <Div>
           <Text style={{ marginBottom: 12 }}>Подпишитесь на ИНН, чтобы получать уведомления о новых контрактах. Проверка каждые 5 минут.</Text>
@@ -390,7 +379,6 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile }) =>
         </Div>
       </Group>
 
-      {/* Toast */}
       {toastMessage.visible && (
         <div style={{
           position: 'fixed',
