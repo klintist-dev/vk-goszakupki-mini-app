@@ -225,7 +225,7 @@ export const Profile: FC<ProfileProps> = ({
       </Group>
 
       {/* Информация о работе уведомлений */}
-      <Group header={<Header size="s">ℹ️ О уведомлениях</Header>}>
+      <Group header={<Header size="s">ℹ️ Об уведомлениях</Header>}>
         <Div
           style={{
             background: 'var(--card-background)',

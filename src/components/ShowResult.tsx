@@ -26,10 +26,71 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange, onOrgCli
       );
     }
 
-    // Проверка ИНН / Поиск по названию (текстовый результат)
+    // Поиск по названию (список организаций) или проверка ИНН
     if (data.status === 'success' && data.data?.raw) {
       const raw = data.data.raw;
 
+      // Проверяем, что это список (есть "Найдено организаций:")
+      if (raw.includes('Найдено организаций:')) {
+        // Парсим список организаций
+        const lines = raw.split('\n');
+        const organizations: Array<{name: string, inn: string, ogrn: string, date: string}> = [];
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.match(/^\*\*\d+\./)) {
+            // Название организации
+            const nameMatch = line.match(/\*\*(.+?)\*\*/);
+            const name = nameMatch ? nameMatch[1] : '';
+
+            // Ищем следующие строки
+            let inn = '';
+            let ogrn = '';
+            let date = '';
+
+            for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+              if (lines[j].includes('ИНН:')) {
+                const innMatch = lines[j].match(/ИНН:\s*`?(\d+)`?/);
+                inn = innMatch ? innMatch[1] : '';
+              } else if (lines[j].includes('ОГРН:')) {
+                const ogrnMatch = lines[j].match(/ОГРН:\s*(\d+)/);
+                ogrn = ogrnMatch ? ogrnMatch[1] : '';
+              } else if (lines[j].includes('Дата:')) {
+                const dateMatch = lines[j].match(/Дата:\s*(\d{2}\.\d{2}\.\d{4})/);
+                date = dateMatch ? dateMatch[1] : '';
+              }
+            }
+
+            if (name) {
+              organizations.push({ name, inn, ogrn, date });
+            }
+          }
+        }
+
+        if (organizations.length === 0) {
+          return <ResultCard customContent={<div dangerouslySetInnerHTML={{ __html: raw.replace(/\n/g, '<br/>') }} />} />;
+        }
+
+        return (
+          <div>
+            <Text style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>
+              📋 Найдено организаций: {organizations.length}
+            </Text>
+            {organizations.map((org, idx) => (
+              <ResultCard
+                key={idx}
+                orgName={org.name}
+                inn={org.inn}
+                ogrn={org.ogrn}
+                registrationDate={org.date}
+                onOrgClick={onOrgClick}
+              />
+            ))}
+          </div>
+        );
+      }
+
+      // Проверка ИНН (одна организация)
       // Извлекаем название
       const nameMatch = raw.match(/\*\*Организация найдена\*\*\n\n\*\*(.+?)\*\*/);
       const orgName = nameMatch ? nameMatch[1] : '';
@@ -50,10 +111,9 @@ export const ShowResult: FC<ShowResultProps> = ({ result, onPageChange, onOrgCli
       const directorMatch = raw.match(/Руководитель:\s*(.+?)(?:\n|$)/);
       const director = directorMatch ? directorMatch[1].trim() : '';
 
-      // Извлекаем КПП (только цифры)
+      // Извлекаем КПП
       const kppMatch = raw.match(/КПП:\s*(\d{9})/);
       const kpp = kppMatch ? kppMatch[1] : '';
-      console.log('📦 Извлечённый КПП:', kpp);
 
       return (
         <ResultCard

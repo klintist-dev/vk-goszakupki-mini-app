@@ -82,15 +82,25 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     }
   };
 
+  // Обработчик ошибок сети
+  const handleNetworkError = (error: any, setResult: (value: string) => void) => {
+    if (error.message === 'Failed to fetch' || error.name === 'TypeError' || error.message?.includes('NetworkError')) {
+      setResult(JSON.stringify({ error: "Нет соединения с интернетом. Проверьте подключение." }));
+    } else {
+      setResult(JSON.stringify({ error: error.message || 'Произошла ошибка' }));
+    }
+  };
+
   const testINN = async () => {
     if (!inn) { setResult1(JSON.stringify({ error: "Введите ИНН" })); return; }
     setLoading1(true);
     try {
       const response = await fetch(`${API_URL}/fns/inn/${inn}`);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       setResult1(JSON.stringify(data, null, 2));
     } catch (error: any) {
-      setResult1(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult1);
     } finally {
       setLoading1(false);
     }
@@ -103,10 +113,11 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     if (region.trim()) url += `/region/${region.trim()}`;
     try {
       const response = await fetch(url);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       setResult2(JSON.stringify(data, null, 2));
     } catch (error: any) {
-      setResult2(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult2);
     } finally {
       setLoading2(false);
     }
@@ -117,10 +128,11 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     setLoading3(true);
     try {
       const response = await fetch(`${API_URL}/fns/extract/${extractInn}`);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       setResult3(JSON.stringify(data, null, 2));
     } catch (error: any) {
-      setResult3(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult3);
     } finally {
       setLoading3(false);
     }
@@ -131,10 +143,11 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     setLoading4(true);
     try {
       const response = await fetch(`${API_URL}/fns/passport/${passportSeria}/${passportNumber}`);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       setResult4(JSON.stringify(data, null, 2));
     } catch (error: any) {
-      setResult4(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult4);
     } finally {
       setLoading4(false);
     }
@@ -148,6 +161,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     setLoading5(true);
     try {
       const response = await fetch(`${API_URL}/zakupki/search/${zakupkiInn}`);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       if (data.status === 'success') {
         const contracts = data.contracts;
@@ -176,7 +190,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
         setResult5(JSON.stringify({ error: data.message || 'Ошибка поиска' }));
       }
     } catch (error: any) {
-      setResult5(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult5);
     } finally {
       setLoading5(false);
     }
@@ -191,6 +205,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     try {
       const url = `${API_URL}/zakupki/customer/contracts/${customerInn}?page=${page}&limit=${ITEMS_PER_PAGE}`;
       const response = await fetch(url);
+      if (!response.ok) throw new Error(`Ошибка ${response.status}`);
       const data = await response.json();
       if (data.success) {
         const contracts = data.contracts;
@@ -213,7 +228,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
         setResult6(JSON.stringify({ error: data.error || 'Ошибка поиска' }));
       }
     } catch (error: any) {
-      setResult6(JSON.stringify({ error: error.message }));
+      handleNetworkError(error, setResult6);
     } finally {
       setLoading6(false);
     }
@@ -242,20 +257,23 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
 
   return (
     <Panel id={id}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '12px 16px',
-        background: 'var(--card-background)',
-        borderBottom: '1px solid var(--border)'
-      }}>
-        <Title level="2" style={{ color: 'var(--accent)', margin: 0 }}>БюрократЪ</Title>
-        <Button size="s" mode="primary" onClick={onNavigateToProfile}>
-          👤 Профиль
-        </Button>
-      </div>
+      {/* Шапка — только кнопка Профиль (без заголовка) для неавторизованных */}
+      {!fetchedUser && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          padding: '12px 16px',
+          background: 'var(--card-background)',
+          borderBottom: '1px solid var(--border)'
+        }}>
+          <Button size="s" mode="primary" onClick={onNavigateToProfile}>
+            👤 Профиль
+          </Button>
+        </div>
+      )}
 
+      {/* Приветствие */}
       <Group>
         <Div style={{ textAlign: 'center' }}>
           <Title level="2" style={{ color: 'var(--accent)' }}>Привет, {fetchedUser ? first_name : 'гость'}!</Title>
@@ -263,9 +281,15 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
         </Div>
       </Group>
 
+      {/* Если пользователь авторизован — показываем информацию и кнопку в одной строке */}
       {fetchedUser && (
         <Group header={<Header>Пользователь</Header>}>
-          <Div>👤 {first_name} {last_name} {city?.title && `| ${city.title}`}</Div>
+          <Div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <span>👤 {first_name} {last_name} {city?.title && `| ${city.title}`}</span>
+            <Button size="s" mode="primary" onClick={onNavigateToProfile}>
+              Профиль
+            </Button>
+          </Div>
         </Group>
       )}
 
@@ -293,7 +317,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
           <Input placeholder="ИНН организации" value={extractInn} onChange={(e) => setExtractInn(e.target.value)} style={{ marginBottom: 10 }} />
           <Button onClick={getExtract} disabled={loading3} size="m" mode="primary">📄 Получить выписку (PDF)</Button>
           {loading3 && <Spinner size="m" style={{ marginTop: 10 }} />}
-          <ShowResult result={result3} />
+          <ShowResult result={result3} onOrgClick={handleOrgClick} />
         </Div>
       </Group>
 
@@ -395,6 +419,29 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
           {toastMessage.message}
         </div>
       )}
+
+      {/* Футер со ссылками на документы */}
+      <Div style={{
+        textAlign: 'center',
+        padding: '16px',
+        fontSize: '12px',
+        color: 'var(--text-secondary)',
+        borderTop: '1px solid var(--border)',
+        marginTop: '20px'
+      }}>
+        <span
+          onClick={() => window.open('https://burodev.ru/privacy.html', '_blank')}
+          style={{ cursor: 'pointer', marginRight: '16px' }}
+        >
+          Политика конфиденциальности
+        </span>
+        <span
+          onClick={() => window.open('https://burodev.ru/terms.html', '_blank')}
+          style={{ cursor: 'pointer' }}
+        >
+          Пользовательское соглашение
+        </span>
+      </Div>
     </Panel>
   );
 };
