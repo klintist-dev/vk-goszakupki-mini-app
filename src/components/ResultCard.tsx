@@ -26,11 +26,12 @@ export const ResultCard: FC<ResultCardProps> = ({
 }) => {
   // Обработчик ошибки
   if (error) {
+    const errorText = error.startsWith('❌') ? error : `❌ ${error}`;
     return (
       <Card mode="outline" style={{ borderColor: 'var(--error)', marginBottom: 16, background: 'var(--card-background)' }}>
         <Spacing size={16}>
           <Text style={{ color: 'var(--error)', fontWeight: 'bold', fontSize: 16 }}>
-            ❌ {error}
+            {errorText}
           </Text>
         </Spacing>
       </Card>
