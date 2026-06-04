@@ -8,6 +8,7 @@ import { useSubscriptions } from './hooks/useSubscriptions';
 
 export const App = () => {
   const [fetchedUser, setUser] = useState<UserInfo | undefined>();
+  const [userId, setUserId] = useState<number | undefined>();
   const [popout, setPopout] = useState<ReactNode | null>(<ScreenSpinner />);
   const [activePanel, setActivePanel] = useState('home');
   const [showOrgDetails, setShowOrgDetails] = useState(false);
@@ -24,6 +25,16 @@ export const App = () => {
       try {
         const user = await bridge.send('VKWebAppGetUserInfo');
         setUser(user);
+        setUserId(user.id);
+
+        // ЗАПРОС РАЗРЕШЕНИЯ НА УВЕДОМЛЕНИЯ
+        try {
+          await bridge.send('VKWebAppAllowNotifications');
+          console.log('Разрешение на уведомления получено');
+        } catch (notifError) {
+          console.log('Пользователь запретил уведомления');
+        }
+
       } catch (e) {
         console.error('Ошибка получения данных:', e);
       } finally {
@@ -94,6 +105,7 @@ export const App = () => {
           <Home
             id="home"
             fetchedUser={fetchedUser}
+            userId={userId}
             onNavigateToProfile={() => setActivePanel('profile')}
             onOrgClick={handleOrgClick}
           />

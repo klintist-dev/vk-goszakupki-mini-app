@@ -4,7 +4,7 @@ import { Subscription } from '../types';
 
 const API_URL = 'https://burodev.ru/api';
 
-export const useSubscriptions = () => {
+export const useSubscriptions = (userId?: number) => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -87,6 +87,32 @@ export const useSubscriptions = () => {
       const newSubscriptions = [...subscriptions, { inn, name: orgName, type }];
       await saveSubscriptions(newSubscriptions);
 
+      // ✅ ОТПРАВКА ПОДПИСКИ НА СЕРВЕР (если пользователь авторизован)
+      if (userId) {
+        try {
+          const response = await fetch(`${API_URL}/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userId,
+              inn: inn,
+              type: type,
+              name: orgName
+            })
+          });
+
+          if (response.ok) {
+            console.log('✅ Подписка отправлена на сервер');
+          } else {
+            console.error('❌ Ошибка отправки подписки на сервер:', response.status);
+          }
+        } catch (e) {
+          console.error('❌ Ошибка сети при отправке подписки:', e);
+        }
+      } else {
+        console.log('ℹ️ Пользователь не авторизован, подписка сохранена только локально');
+      }
+
       const url = type === 'supplier' ? `${API_URL}/zakupki/search/${inn}` : `${API_URL}/zakupki/customer/contracts/${inn}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -109,6 +135,28 @@ export const useSubscriptions = () => {
   };
 
   const removeSubscription = async (inn: string) => {
+    // ✅ УДАЛЕНИЕ ПОДПИСКИ НА СЕРВЕРЕ (если пользователь авторизован)
+    if (userId) {
+      try {
+        const response = await fetch(`${API_URL}/unsubscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            inn: inn
+          })
+        });
+
+        if (response.ok) {
+          console.log('✅ Подписка удалена на сервере');
+        } else {
+          console.error('❌ Ошибка удаления подписки на сервере:', response.status);
+        }
+      } catch (e) {
+        console.error('❌ Ошибка сети при удалении подписки:', e);
+      }
+    }
+
     const newSubscriptions = subscriptions.filter(s => s.inn !== inn);
     await saveSubscriptions(newSubscriptions);
     const sub = subscriptions.find(s => s.inn === inn);

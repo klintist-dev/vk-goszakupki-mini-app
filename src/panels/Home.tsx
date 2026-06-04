@@ -17,11 +17,12 @@ import { useSubscriptions } from '../hooks/useSubscriptions';
 export interface HomeProps {
   id: string;
   fetchedUser?: UserInfo;
+  userId?: number;
   onNavigateToProfile?: () => void;
   onOrgClick?: (orgData: any) => void;
 }
 
-export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOrgClick }) => {
+export const Home: FC<HomeProps> = ({ id, fetchedUser, userId, onNavigateToProfile, onOrgClick }) => {
   // Регионы России (код -> название)
   const regions = [
     { code: "01", name: "Республика Адыгея (Адыгея)" },
@@ -152,7 +153,7 @@ export const Home: FC<HomeProps> = ({ id, fetchedUser, onNavigateToProfile, onOr
     addSubscription,
     removeSubscription,
     manualCheck,
-  } = useSubscriptions();
+  } = useSubscriptions(userId);
 
   const API_URL = 'https://burodev.ru';
   const ITEMS_PER_PAGE = 20;
