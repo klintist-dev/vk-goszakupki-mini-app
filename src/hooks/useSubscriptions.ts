@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import bridge from '@vkontakte/vk-bridge';
 import { Subscription } from '../types';
 
-const API_URL = 'https://burodev.ru/api';
+const API_URL = '';
 
 export const useSubscriptions = (userId?: number) => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -15,7 +15,30 @@ export const useSubscriptions = (userId?: number) => {
     setTimeout(() => setToastMessage({ message: '', visible: false }), 3000);
   };
 
-  const loadSubscriptions = useCallback(async () => {
+  // Загрузка подписок с сервера
+  const loadSubscriptionsFromServer = async (uid: number) => {
+    try {
+      const response = await fetch(`${API_URL}/subscriptions/${uid}`);
+      const data = await response.json();
+      if (data.status === 'ok' && data.subscriptions) {
+        const serverSubs = data.subscriptions.map((sub: any) => ({
+          inn: sub.inn,
+          name: sub.name,
+          type: sub.type
+        }));
+        setSubscriptions(serverSubs);
+        // Сохраняем в localStorage как резервную копию
+        await saveSubscriptions(serverSubs);
+        return serverSubs;
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки подписок с сервера:', e);
+    }
+    return null;
+  };
+
+  // Загрузка подписок из localStorage (офлайн-режим)
+  const loadSubscriptionsFromLocal = useCallback(async () => {
     try {
       const result = await bridge.send('VKWebAppStorageGet', { keys: ['subscriptions'] });
       if (result.keys && result.keys[0] && result.keys[0].value) {
@@ -33,7 +56,7 @@ export const useSubscriptions = (userId?: number) => {
         }
       }
     } catch (e) {
-      console.error('Ошибка загрузки подписок:', e);
+      console.error('Ошибка загрузки подписок из localStorage:', e);
     }
   }, []);
 
@@ -84,49 +107,52 @@ export const useSubscriptions = (userId?: number) => {
     setLoading(true);
     try {
       const orgName = await getOrgName(inn);
-      const newSubscriptions = [...subscriptions, { inn, name: orgName, type }];
-      await saveSubscriptions(newSubscriptions);
 
-      // ✅ ОТПРАВКА ПОДПИСКИ НА СЕРВЕР (если пользователь авторизован)
+      // Если пользователь авторизован — отправляем на сервер
       if (userId) {
-        try {
-          const response = await fetch(`${API_URL}/subscribe`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: userId,
-              inn: inn,
-              type: type,
-              name: orgName
-            })
-          });
+        const response = await fetch(`${API_URL}/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            inn: inn,
+            type: type,
+            name: orgName
+          })
+        });
 
-          if (response.ok) {
-            console.log('✅ Подписка отправлена на сервер');
-          } else {
-            console.error('❌ Ошибка отправки подписки на сервер:', response.status);
+        if (response.ok) {
+          // Перезагружаем список с сервера
+          await loadSubscriptionsFromServer(userId);
+          showToast(`✅ Подписка на ${orgName} добавлена`);
+
+          // Получаем количество контрактов для отслеживания
+          const url = type === 'supplier'
+            ? `${API_URL}/zakupki/search/${inn}`
+            : `${API_URL}/zakupki/customer/contracts/${inn}`;
+          const contractsResponse = await fetch(url);
+          const data = await contractsResponse.json();
+          if (data.status === 'success' || data.success) {
+            const total = data.total || data.contracts?.length || 0;
+            await bridge.send('VKWebAppStorageSet', {
+              key: `last_count_${type}_${inn}`,
+              value: total.toString()
+            });
           }
-        } catch (e) {
-          console.error('❌ Ошибка сети при отправке подписки:', e);
+          return true;
+        } else {
+          showToast('❌ Ошибка при добавлении подписки на сервере');
+          return false;
         }
       } else {
-        console.log('ℹ️ Пользователь не авторизован, подписка сохранена только локально');
+        // Если не авторизован — сохраняем только локально
+        const newSubscriptions = [...subscriptions, { inn, name: orgName, type }];
+        await saveSubscriptions(newSubscriptions);
+        showToast(`✅ Подписка на ${orgName} добавлена (локально)`);
+        return true;
       }
-
-      const url = type === 'supplier' ? `${API_URL}/zakupki/search/${inn}` : `${API_URL}/zakupki/customer/contracts/${inn}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.status === 'success' || data.success) {
-        const total = data.total || data.contracts?.length || 0;
-        await bridge.send('VKWebAppStorageSet', {
-          key: `last_count_${type}_${inn}`,
-          value: total.toString()
-        });
-      }
-
-      showToast(`✅ Подписка на ${orgName} добавлена`);
-      return true;
     } catch (e) {
+      console.error('Ошибка при добавлении подписки:', e);
       showToast('❌ Ошибка при добавлении подписки');
       return false;
     } finally {
@@ -135,7 +161,7 @@ export const useSubscriptions = (userId?: number) => {
   };
 
   const removeSubscription = async (inn: string) => {
-    // ✅ УДАЛЕНИЕ ПОДПИСКИ НА СЕРВЕРЕ (если пользователь авторизован)
+    // Если пользователь авторизован — удаляем на сервере
     if (userId) {
       try {
         const response = await fetch(`${API_URL}/unsubscribe`, {
@@ -148,15 +174,17 @@ export const useSubscriptions = (userId?: number) => {
         });
 
         if (response.ok) {
-          console.log('✅ Подписка удалена на сервере');
-        } else {
-          console.error('❌ Ошибка удаления подписки на сервере:', response.status);
+          // Перезагружаем список с сервера
+          await loadSubscriptionsFromServer(userId);
+          showToast(`✅ Подписка удалена`);
+          return;
         }
       } catch (e) {
-        console.error('❌ Ошибка сети при удалении подписки:', e);
+        console.error('Ошибка удаления подписки на сервере:', e);
       }
     }
 
+    // Если сервер не ответил или пользователь не авторизован
     const newSubscriptions = subscriptions.filter(s => s.inn !== inn);
     await saveSubscriptions(newSubscriptions);
     const sub = subscriptions.find(s => s.inn === inn);
@@ -215,10 +243,16 @@ export const useSubscriptions = (userId?: number) => {
     showToast('✅ Проверка завершена');
   };
 
+  // При загрузке: если есть userId — грузим с сервера, иначе из localStorage
   useEffect(() => {
-    loadSubscriptions();
-  }, [loadSubscriptions]);
+    if (userId) {
+      loadSubscriptionsFromServer(userId);
+    } else {
+      loadSubscriptionsFromLocal();
+    }
+  }, [userId]);
 
+  // Автоматическая проверка каждые 5 минут
   useEffect(() => {
     const interval = setInterval(() => checkAllSubscriptions(), 5 * 60 * 1000);
     return () => clearInterval(interval);
